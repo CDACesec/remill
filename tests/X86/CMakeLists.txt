@@ -34,14 +34,9 @@ function(COMPILE_X86_TESTS name address_size has_avx has_avx512)
   target_compile_options(lift-${name}-tests
     PRIVATE ${X86_TEST_FLAGS} -DIN_TEST_GENERATOR
   )
-  
-  file(GLOB X86_TEST_FILES
-    "${CMAKE_CURRENT_LIST_DIR}/*/*.S"
-  )
-  
-  set_target_properties(lift-${name}-tests PROPERTIES OBJECT_DEPENDS "${X86_TEST_FILES}")
 
-  target_link_libraries(lift-${name}-tests PRIVATE remill GTest::gtest)
+  target_link_libraries(lift-${name}-tests PUBLIC remill ${gtest_LIBRARIES})
+  target_include_directories(lift-${name}-tests PUBLIC ${gtest_INCLUDE_DIRS})
   target_compile_definitions(lift-${name}-tests PUBLIC ${PROJECT_DEFINITIONS})
 
   add_custom_command(
@@ -57,9 +52,9 @@ function(COMPILE_X86_TESTS name address_size has_avx has_avx512)
   )
  
   add_executable(run-${name}-tests EXCLUDE_FROM_ALL Run.cpp Tests.S tests_${name}.S)
-  set_target_properties(run-${name}-tests PROPERTIES OBJECT_DEPENDS "${X86_TEST_FILES}")
 
-  target_link_libraries(run-${name}-tests PUBLIC remill GTest::gtest)
+  target_link_libraries(run-${name}-tests PUBLIC remill ${gtest_LIBRARIES})
+  target_include_directories(run-${name}-tests PUBLIC ${gtest_INCLUDE_DIRS})
   target_compile_definitions(run-${name}-tests PUBLIC ${PROJECT_DEFINITIONS})
     
   target_compile_options(run-${name}-tests
@@ -71,8 +66,7 @@ function(COMPILE_X86_TESTS name address_size has_avx has_avx512)
   add_dependencies(test_dependencies "run-${name}-tests")
 endfunction()
 
-find_package(GTest CONFIG REQUIRED)
-
+find_package(gtest REQUIRED)
 enable_testing()
 
 if (NOT APPLE)

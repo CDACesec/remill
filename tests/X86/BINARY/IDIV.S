@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef __APPLE__
-
 TEST_BEGIN(IDIVax, 2)
 TEST_IGNORE_FLAGS(CF OF SF ZF AF PF)
 TEST_INPUTS(
-    IF_NOT_APPLE_(0, 0)
-    IF_NOT_APPLE_(1, 0)
+    0, 0,
+    1, 0,
     0, 1,
     1, 1,
     1, 2,
@@ -42,8 +40,8 @@ TEST_END
 TEST_BEGIN_64(IDIVax_64, 2)
 TEST_IGNORE_FLAGS(CF OF SF ZF AF PF)
 TEST_INPUTS(
-    IF_NOT_APPLE_(0, 0)
-    IF_NOT_APPLE_(1, 0)
+    0, 0,
+    1, 0,
     0, 1,
     1, 1,
     1, 2,
@@ -65,8 +63,8 @@ TEST_END_64
 TEST_BEGIN(IDIVdxax, 3)
 TEST_IGNORE_FLAGS(CF OF SF ZF AF PF)
 TEST_INPUTS(
-    IF_NOT_APPLE_(0, 0, 0)
-    IF_NOT_APPLE_(1, 0, 0)
+    0, 0, 0,
+    1, 0, 0,
     0, 1, 0,
     1, 1, 0,
     1, 2, 0,
@@ -136,5 +134,3 @@ TEST_INPUTS(
 
     idiv ebx
 TEST_END_64
-
-#endif

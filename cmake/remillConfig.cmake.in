@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Trail of Bits, Inc.
+# Copyright (c) 2017 Trail of Bits, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,60 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-@PACKAGE_INIT@
+cmake_minimum_required(VERSION 3.2)
 
-foreach(_comp ${remill_FIND_COMPONENTS})
-  if (NOT "VCPKG_DEPS" STREQUAL _comp)
-    set(remill_FOUND False)
-    set(remill_NOT_FOUND_MESSAGE "Unsupported component: ${_comp}. Only VCPKG_DEPS")
+if(NOT TARGET remill)
+  if(WIN32)
+    set(REMILL_LIBRARY_LOCATION "${CMAKE_INSTALL_PREFIX}/remill/lib/remill.lib")
+    set(REMILL_INCLUDE_LOCATION "${CMAKE_INSTALL_PREFIX}/remill/include")
+  else()
+    set(REMILL_LIBRARY_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/libremill.a")
+    set(REMILL_INCLUDE_LOCATION "${CMAKE_INSTALL_PREFIX}/include")
   endif()
 
-  if ("VCPKG_DEPS" STREQUAL _comp)
-    set(remill_setup_vcpkg True)
-    if(NOT "x@VCPKG_ROOT@x" STREQUAL "xx" AND NOT USE_SYSTEM_DEPENDENCIES)
-      if (EXISTS "@VCPKG_ROOT@")
-        set(VCPKG_ROOT "@VCPKG_ROOT@"
-          CACHE PATH "Location of dependency libraries"
-          )
-        include(${CMAKE_CURRENT_LIST_DIR}/vcpkg_helper.cmake)
-        message(STATUS "Found VCPKG_ROOT: ${VCPKG_ROOT}")
-        set(vcpkgdeps_FOUND)
-      endif()
-    endif()
-  endif()
-endforeach()
+  add_library(remill STATIC IMPORTED)
+  set_property(TARGET remill PROPERTY IMPORTED_LOCATION "${REMILL_LIBRARY_LOCATION}")
+  target_include_directories(remill INTERFACE "${REMILL_INCLUDE_LOCATION}")
 
-if(NOT remill_setup_vcpkg AND NOT TARGET remill)
-  set(LLVM_MAJOR_VERSION @LLVM_MAJOR_VERSION@)
-  set(LLVM_MINOR_VERSION @LLVM_MINOR_VERSION@)
-  set(REMILL_LLVM_VERSION @LLVM_MAJOR_VERSION@)
+  target_compile_definitions(remill INTERFACE "REMILL_INSTALL_SEMANTICS_DIR=\"${REMILL_INSTALL_SEMANTICS_DIR}\"")
+  target_compile_definitions(remill INTERFACE "REMILL_BUILD_SEMANTICS_DIR_X86=\"${REMILL_INSTALL_SEMANTICS_DIR}\"")
+  target_compile_definitions(remill INTERFACE "REMILL_BUILD_SEMANTICS_DIR_AARCH64=\"${REMILL_INSTALL_SEMANTICS_DIR}\"")
 
-  # External libs
-  include(CMakeFindDependencyMacro)
-  find_dependency(XED)
-  find_dependency(glog)
-  find_dependency(LLVM)
-  # NOTE: If changing this, also replicate in CMakeLists.txt
-  if (LLVM_WITH_Z3)
-    find_dependency(Z3)
-    get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
-    list(REMOVE_ITEM LLVMSupport_LIBS Z3)
-    list(APPEND LLVMSupport_LIBS z3::libz3)
-    set_target_properties(LLVMSupport PROPERTIES
-      INTERFACE_LINK_LIBRARIES "${LLVMSupport_LIBS}")
-  endif()
-
-  # Exported Targets
-  include("${CMAKE_CURRENT_LIST_DIR}/remillTargets.cmake")
-
-  if(TARGET thirdparty_llvm)
-    # Need this so that LLVM doesn't hardcode it's include directories
-    set_target_properties(thirdparty_llvm PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${LLVM_INCLUDE_DIRS}"
-      INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${LLVM_INCLUDE_DIRS}"
-      )
-  endif()
-
+  # Add a dummy 'semantics' target to satisfy the protobuf generator
+  add_custom_target(semantics)
 endif()
-
-set(remill_setup_vcpkg False)

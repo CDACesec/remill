@@ -16,6 +16,7 @@
 
 /* Should not affect any flags */
 TEST_BEGIN(RCLr8i8_0, 1)
+TEST_IGNORE_FLAGS(OF)
 TEST_INPUTS(
     0,
     1,

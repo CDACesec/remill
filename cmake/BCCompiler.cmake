@@ -2,10 +2,6 @@
 # compiler detection
 #
 
-if(DEFINED CMAKE_OSX_SYSROOT)
-  set(EXTRA_BC_SYSROOT -isysroot ${CMAKE_OSX_SYSROOT})
-endif()
-
 set(DEFAULT_BC_COMPILER_FLAGS
   -emit-llvm -Wno-unknown-warning-option -Wall -Wshadow
   -Wconversion -Wpadded -pedantic -Wshorten-64-to-32 -Wgnu-alignof-expression
@@ -16,31 +12,73 @@ set(DEFAULT_BC_COMPILER_FLAGS
   -Wno-variadic-macros -Wno-c11-extensions -Wno-c++11-extensions
   -ffreestanding -fno-common -fno-builtin -fno-exceptions -fno-rtti
   -fno-asynchronous-unwind-tables -Wno-unneeded-internal-declaration
-  -Wno-unused-function -Wgnu-inline-cpp-without-extern -std=c++14
-  -Wno-pass-failed=transform-warning
-  ${EXTRA_BC_SYSROOT}
+  -Wno-unused-function -std=c++0x
 )
 
-find_package(Clang CONFIG REQUIRED)
-get_target_property(CLANG_PATH clang LOCATION)
-get_target_property(LLVMLINK_PATH llvm-link LOCATION)
+set(CLANG_CXX_EXECUTABLE_NAME "clang++")
+set(LLVMLINK_EXECUTABLE_NAME "llvm-link")
 
-file(WRITE "${CMAKE_BINARY_DIR}/emitllvm.test.cpp" "int main(int argc, char* argv[]){return 0;}\n\n")
+if(DEFINED WIN32)
+  set(CLANG_CXX_EXECUTABLE_NAME "${CLANG_CXX_EXECUTABLE_NAME}.exe")
+  set(LLVMLINK_EXECUTABLE_NAME "${LLVMLINK_EXECUTABLE_NAME}.exe")
+endif()
 
-execute_process(COMMAND "${CLANG_PATH}" "-emit-llvm" "-c" "emitllvm.test.cpp" "-o" "emitllvm.test.cpp.bc"
-  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-  RESULT_VARIABLE AOUT_IS_NOT_BC
-  OUTPUT_QUIET ERROR_QUIET
-)
+if(DEFINED ENV{LLVM_INSTALL_PREFIX})
+  message(STATUS "Setting LLVM_INSTALL_PREFIX from the environment variable...")
+  set(LLVM_INSTALL_PREFIX $ENV{LLVM_INSTALL_PREFIX})
+endif()
 
-if(NOT "${AOUT_IS_NOT_BC}" STREQUAL "0")
-  message(SEND_ERROR "The following compiler is not suitable to generate bitcode: ${CLANG_PATH}")
+if (DEFINED LLVM_INSTALL_PREFIX)
+  message(STATUS "LLVM bin dir: ${LLVM_INSTALL_PREFIX}/bin")
+  # clang path
+  find_program(CLANG_PATH
+    NAMES "${CLANG_CXX_EXECUTABLE_NAME}"
+    HINTS "${LLVM_INSTALL_PREFIX}/bin"
+    NO_DEFAULT_PATH
+  )
+
+  # llvm-link path
+  find_program(LLVMLINK_PATH
+    NAMES "${LLVMLINK_EXECUTABLE_NAME}"
+    HINTS "${LLVM_INSTALL_PREFIX}/bin"
+    NO_DEFAULT_PATH
+  )
 else()
-  message(STATUS "The following compiler has been selected to compile the bitcode: ${CLANG_PATH}")
-  message(STATUS "The following linker has been selected to link the bitcode: ${LLVMLINK_PATH}")
+  # clang path
+  if("${CMAKE_CXX_COMPILER}" STREQUAL "${CLANG_CXX_EXECUTABLE_NAME}")
+    set(CLANG_PATH "${CMAKE_CXX_COMPILER}")
 
-  set(CMAKE_BC_COMPILER "${CLANG_PATH}" CACHE PATH "Bitcode Compiler")
-  set(CMAKE_BC_LINKER "${LLVMLINK_PATH}" CACHE PATH "Bitcode Linker")
+  else()
+    find_program(CLANG_PATH
+      NAMES "${CLANG_CXX_EXECUTABLE_NAME}"
+      PATHS "/usr/bin" "/usr/local/bin" "${LLVM_INSTALL_PREFIX}/bin" "${LLVM_TOOLS_BINARY_DIR}" "C:/Program Files/LLVM/bin" "C:/Program Files (x86)/LLVM/bin"
+    )
+  endif()
+
+  # llvm-link path
+  find_program(LLVMLINK_PATH
+    NAMES "${LLVMLINK_EXECUTABLE_NAME}"
+    PATHS "/usr/bin" "/usr/local/bin" "${LLVM_INSTALL_PREFIX}/bin" "${LLVM_TOOLS_BINARY_DIR}" "C:/Program Files/LLVM/bin" "C:/Program Files (x86)/LLVM/bin"
+  )
+endif()
+
+if((NOT "${CLANG_PATH}" MATCHES "CLANG_PATH-NOTFOUND") AND (NOT "${LLVMLINK_PATH}" MATCHES "LLVMLINK_PATH-NOTFOUND"))
+  file(WRITE "${CMAKE_BINARY_DIR}/emitllvm.test.cpp" "int main(int argc, char* argv[]){return 0;}\n\n")
+
+  execute_process(COMMAND "${CLANG_PATH}" "-emit-llvm" "-c" "emitllvm.test.cpp" "-o" "emitllvm.test.cpp.bc"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RESULT_VARIABLE AOUT_IS_NOT_BC
+    OUTPUT_QUIET ERROR_QUIET
+  )
+
+  if(NOT "${AOUT_IS_NOT_BC}" STREQUAL "0")
+    message(SEND_ERROR "The following compiler is not suitable to generate bitcode: ${CLANG_PATH}")
+  else()
+    message(STATUS "The following compiler has been selected to compile the bitcode: ${CLANG_PATH}")
+
+    set(CMAKE_BC_COMPILER "${CLANG_PATH}" CACHE PATH "Bitcode Compiler")
+    set(CMAKE_BC_LINKER "${LLVMLINK_PATH}" CACHE PATH "Bitcode Linker")
+  endif()
 endif()
 
 #
@@ -164,13 +202,8 @@ function(add_runtime target_name)
       set(additional_windows_settings "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH")
     endif()
 
-  if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(target_decl "-target" "x86_64-apple-macosx11.0.0")
-  endif()
-
-
     add_custom_command(OUTPUT "${absolute_output_file_path}"
-      COMMAND "${CMAKE_BC_COMPILER}" ${include_directory_list} ${additional_windows_settings} ${target_decl}  "-DADDRESS_SIZE_BITS=${address_size}" ${definition_list} ${DEFAULT_BC_COMPILER_FLAGS} ${bc_flag_list} ${source_file_option_list} -c "${absolute_source_file_path}" -o "${absolute_output_file_path}"
+      COMMAND "${CMAKE_BC_COMPILER}" ${include_directory_list} ${additional_windows_settings} "-DADDRESS_SIZE_BITS=${address_size}" ${definition_list} ${DEFAULT_BC_COMPILER_FLAGS} ${bc_flag_list} ${source_file_option_list} -c "${absolute_source_file_path}" -o "${absolute_output_file_path}"
       MAIN_DEPENDENCY "${absolute_source_file_path}"
       ${dependency_list_directive}
       COMMENT "Building BC object ${absolute_output_file_path}"
@@ -192,10 +225,8 @@ function(add_runtime target_name)
 
   add_custom_target("${target_name}" ALL DEPENDS "${absolute_target_path}")
   set_property(TARGET "${target_name}" PROPERTY LOCATION "${absolute_target_path}")
-  
-  if(REMILL_ENABLE_INSTALL_TARGET)
-    if(DEFINED install_destination)
-      install(FILES "${absolute_target_path}" DESTINATION "${install_destination}")
-    endif()
+
+  if(DEFINED install_destination)
+    install(FILES "${absolute_target_path}" DESTINATION "${install_destination}")
   endif()
 endfunction()

@@ -23,9 +23,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -42,9 +40,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -60,9 +56,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -79,9 +73,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -97,9 +89,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -116,9 +106,7 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141)
+    1, 1, 1)
 
     mov eax, ARG1_32
     mov ebx, ARG2_32
@@ -134,14 +122,10 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141,
-    0xFFFFFFFFFFFFFFFF, 0, 0x4141414141414141,
-    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x4141414141414141)
+    1, 1, 1)
 
-    mov rax, ARG1_64
-    mov rbx, ARG2_64
+    mov eax, ARG1_32
+    mov ebx, ARG2_32
     mov QWORD PTR [rsp - 8], ARG3_64
     cmpxchg QWORD PTR [rsp - 8], rbx
 TEST_END_MEM_64
@@ -155,30 +139,10 @@ TEST_INPUTS(
     1, 0, 0,
     1, 0, 1,
     1, 1, 0,
-    1, 1, 1,
-    0xFFFFFFFF, 0, 0x41414141,
-    0xFFFFFFFF, 0xFFFFFFFF, 0x41414141,
-    0xFFFFFFFFFFFFFFFF, 0, 0x4141414141414141,
-    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x4141414141414141)
+    1, 1, 1)
 
-    mov rax, ARG1_64
-    mov rbx, ARG2_64
+    mov eax, ARG1_32
+    mov ebx, ARG2_32
     cmpxchg ARG3_64, rbx
 TEST_END_64
 
-TEST_BEGIN_64(CMPXCHG_issue376, 3)
-TEST_INPUTS(
-    0x4141414141414141, 0x4141414141414141, 0x4141414141414141,
-    0x4141414141414141, 0x4141414141414141, 0xFFFFFFFFFFFFFFFF,
-    0x4141414141414141, 0xFFFFFFFFFFFFFFFF, 0x4141414141414141,
-    0x4141414141414141, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
-    0xFFFFFFFFFFFFFFFF, 0x4141414141414141, 0x4141414141414141,
-    0xFFFFFFFFFFFFFFFF, 0x4141414141414141, 0xFFFFFFFFFFFFFFFF,
-    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x4141414141414141,
-    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
-
-    mov rax, ARG1_64
-    mov rbx, ARG2_64
-    mov rcx, ARG3_64
-    cmpxchg ecx, ebx
-TEST_END_64

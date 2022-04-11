@@ -27,13 +27,6 @@
 #ifndef HAS_FEATURE_AVX512
 # define HAS_FEATURE_AVX512 1
 #endif
-
-
-#ifdef __APPLE__
-# define IF_NOT_APPLE_(...)
-#else
-# define IF_NOT_APPLE_(...) __VA_ARGS__ ,
-#endif
         
 #define FUNC_NAME(instr_name, num_args) \
     CAT3(instr_name, _, num_args)
@@ -169,7 +162,7 @@ SYMBOL(FUNC_NAME(instr_name, num_args)): ; \
     CONST_SECTION
     .align 16
 SYMBOL(fpu_cwd):
-    .long 0x37F  /* Default is 0x37F */
+    .long 0x27F  /* Default is 0x37F */
 
     .align 16
 SYMBOL(vec_data):
@@ -225,7 +218,8 @@ SYMBOL(DoInvokeTestCase):
     fldz
     fninit
 
-    /* Ensure FPU is set to double extended precision */
+    /* Change the precision to double precision (as opposed to the default
+     * extended precision) */
     fldcw [RIP + SYMBOL(fpu_cwd)]
 
     /* Set the bits of some of the vector regs to 1. This makes it easier to
@@ -328,7 +322,6 @@ SYMBOL(__x86_test_table_begin):
 #include "tests/X86/ABI.S"
 #include "tests/X86/MMX/INPUTS.S"
 
-
 /* Change to `0` and put new `#include`s above when making new tests to speed
  * up compile and test times. */
 #if 1
@@ -339,11 +332,9 @@ SYMBOL(__x86_test_table_begin):
 #include "tests/X86/DATAXFER/MOV.S"
 #include "tests/X86/DATAXFER/MOVAPD.S"
 #include "tests/X86/DATAXFER/MOVAPS.S"
-#include "tests/X86/DATAXFER/MOVBE.S"
 #include "tests/X86/DATAXFER/MOVD.S"
 #include "tests/X86/DATAXFER/MOVDQA.S"
 #include "tests/X86/DATAXFER/MOVDQU.S"
-#include "tests/X86/DATAXFER/MOVHLPS.S"
 #include "tests/X86/DATAXFER/MOVHPD.S"
 #include "tests/X86/DATAXFER/MOVHPS.S"
 #include "tests/X86/DATAXFER/MOVLPD.S"
@@ -357,11 +348,9 @@ SYMBOL(__x86_test_table_begin):
 #include "tests/X86/DATAXFER/MOVUPS.S"
 #include "tests/X86/DATAXFER/MOVZX.S"
 #include "tests/X86/DATAXFER/XCHG.S"
-#include "tests/X86/DATAXFER/KMOVW.S"
 
 /* Bring in the rest of the semantic tests. */
 
-#include "tests/X86/AVX/VINSERTF128.S"
 #include "tests/X86/AVX/VZEROUPPER.S"
 #include "tests/X86/AVX/VPBROADCASTB.S"
 
@@ -524,13 +513,11 @@ SYMBOL(__x86_test_table_begin):
 #include "tests/X86/SSE/UNPCKLPD.S"
 #include "tests/X86/SSE/UNPCKLPS.S"
 #include "tests/X86/SSE/UNPCKHPD.S"
-#include "tests/X86/SSE/UNPCKHPS.S"
 #include "tests/X86/SSE/MOVDDUP.S"
 #include "tests/X86/SSE/SQRTSS.S"
 #include "tests/X86/SSE/SQRTSD.S"
 #include "tests/X86/SSE/MXCSR.S"
 #include "tests/X86/SSE/SHUFPS.S"
-#include "tests/X86/SSE/SHUFPD.S"
 
 #include "tests/X86/STRINGOP/CMPS.S"
 #include "tests/X86/STRINGOP/LODS.S"

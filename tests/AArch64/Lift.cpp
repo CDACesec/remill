@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2017 Trail of Bits, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,6 @@
  * limitations under the License.
  */
 
-#include <gflags/gflags.h>
-#include <glog/logging.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/GlobalValue.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
@@ -31,6 +22,16 @@
 #include <sstream>
 #include <string>
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+
 #include "remill/Arch/Arch.h"
 #include "remill/Arch/Instruction.h"
 #include "remill/Arch/Name.h"
@@ -38,12 +39,13 @@
 #include "remill/BC/Lifter.h"
 #include "remill/BC/Util.h"
 #include "remill/OS/OS.h"
+
 #include "tests/AArch64/Test.h"
 
 #ifdef __APPLE__
-#  define SYMBOL_PREFIX "_"
+# define SYMBOL_PREFIX "_"
 #else
-#  define SYMBOL_PREFIX ""
+# define SYMBOL_PREFIX ""
 #endif
 
 DEFINE_string(bc_out, "",
@@ -52,100 +54,144 @@ DEFINE_string(bc_out, "",
 DECLARE_string(arch);
 DECLARE_string(os);
 
+extern "C" {
+int gNativeState [[gnu::used]] = 0;
+int gLiftedState [[gnu::used]] = 0;
+}  // extern
+
 namespace {
 
-class TestTraceManager : public remill::TraceManager {
- public:
-  virtual ~TestTraceManager(void) = default;
+// Decode a test and add it as a basic block to the module.
+//
+// TODO(pag): Eventually handle control-flow.
+static void AddFunctionToModule(llvm::Module *module,
+                                const remill::Arch *arch,
+                                const test::TestInfo &test) {
+  DLOG(INFO)
+      << "Adding block for: " << test.test_name;
 
-  void SetLiftedTraceDefinition(uint64_t addr,
-                                llvm::Function *lifted_func) override {
-    traces[addr] = lifted_func;
-  }
+  std::stringstream ss;
+  ss << SYMBOL_PREFIX << test.test_name << "_lifted";
 
-  llvm::Function *GetLiftedTraceDeclaration(uint64_t addr) override {
-    auto trace_it = traces.find(addr);
-    if (trace_it != traces.end()) {
-      return trace_it->second;
-    } else {
-      return nullptr;
+  auto word_type = llvm::Type::getIntNTy(module->getContext(),
+                                         arch->address_size);
+  auto func = remill::DeclareLiftedFunction(module, ss.str());
+  remill::CloneBlockFunctionInto(func);
+
+  func->setLinkage(llvm::GlobalValue::ExternalLinkage);
+  func->setVisibility(llvm::GlobalValue::DefaultVisibility);
+
+  remill::IntrinsicTable intrinsics(module);
+  remill::InstructionLifter lifter(word_type, &intrinsics);
+
+  std::map<uint64_t, remill::Instruction> inst;
+  std::map<uint64_t, llvm::BasicBlock *> blocks;
+
+  // Function that will create basic blocks as needed.
+  auto GetOrCreateBlock = [func, &blocks] (uint64_t block_pc) {
+    auto &block = blocks[block_pc];
+    if (!block) {
+      block = llvm::BasicBlock::Create(func->getContext(), "", func);
+    }
+    return block;
+  };
+
+  std::stringstream seen_insts;
+  const char *sep = "";
+
+  auto entry_block = GetOrCreateBlock(test.test_begin);
+  llvm::BranchInst::Create(entry_block, &(func->front()));
+
+  auto saw_isel = false;
+  auto addr = test.test_begin;
+  while (addr < test.test_end) {
+    std::string inst_bytes;
+    auto bytes = reinterpret_cast<const char *>(addr);
+    inst_bytes.insert(inst_bytes.end(), bytes, bytes + 4);
+
+    remill::Instruction inst;
+    CHECK(arch->DecodeInstruction(addr, inst_bytes, inst))
+        << "Can't decode test instruction " << inst.Serialize()
+        << " in " << test.test_name;
+
+    seen_insts << sep << inst.function;
+    sep = ", ";
+
+    LOG(INFO)
+        << "Lifting " << inst.Serialize();
+
+    auto block = GetOrCreateBlock(inst.pc);
+    CHECK(remill::kLiftedInstruction == lifter.LiftIntoBlock(inst, block))
+        << "Can't lift test instruction " << inst.Serialize()
+        << " in " << test.test_name;
+
+    saw_isel = saw_isel || inst.function == test.isel_name;
+    addr += inst.NumBytes();
+
+    // Connect together the basic blocks.
+    switch (inst.category) {
+      case remill::Instruction::kCategoryNormal:
+      case remill::Instruction::kCategoryNoOp:
+        llvm::BranchInst::Create(GetOrCreateBlock(inst.next_pc), block);
+        break;
+
+      case remill::Instruction::kCategoryDirectJump:
+      case remill::Instruction::kCategoryDirectFunctionCall:
+        llvm::BranchInst::Create(GetOrCreateBlock(inst.branch_taken_pc),
+                                 block);
+        break;
+
+      case remill::Instruction::kCategoryConditionalBranch:
+        llvm::BranchInst::Create(GetOrCreateBlock(inst.branch_taken_pc),
+                                 GetOrCreateBlock(inst.branch_not_taken_pc),
+                                 remill::LoadBranchTaken(block), block);
+        break;
+
+      default:
+        remill::AddTerminatingTailCall(block, intrinsics.missing_block);
+        break;
     }
   }
 
-  llvm::Function *GetLiftedTraceDefinition(uint64_t addr) override {
-    return GetLiftedTraceDeclaration(addr);
-  }
+  CHECK(saw_isel)
+      << "Test " << test.test_name << " does not have an instruction that "
+      << "uses the semantics function " << test.isel_name << ", saw "
+      << seen_insts.str();
 
-  bool TryReadExecutableByte(uint64_t addr, uint8_t *byte) override {
-    auto byte_it = memory.find(addr);
-    if (byte_it != memory.end()) {
-      *byte = byte_it->second;
-      return true;
-    } else {
-      return false;
+  // Terminate any stragglers.
+  for (auto pc_to_block : blocks) {
+    auto block = pc_to_block.second;
+    if (!block->getTerminator()) {
+      remill::AddTerminatingTailCall(block, intrinsics.missing_block);
     }
   }
-
- public:
-  std::unordered_map<uint64_t, uint8_t> memory;
-  std::unordered_map<uint64_t, llvm::Function *> traces;
-};
+}
 
 }  // namespace
 
 extern "C" int main(int argc, char *argv[]) {
+
   google::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
+  auto os = remill::GetOSName(REMILL_OS);
+  auto arch = remill::Arch::Get(os, remill::kArchAArch64LittleEndian);
+
   DLOG(INFO) << "Generating tests.";
 
-  std::vector<const test::TestInfo *> tests;
-  for (auto i = 0U;; ++i) {
+  auto context = new llvm::LLVMContext;
+  auto bc_file = remill::FindSemanticsBitcodeFile(FLAGS_arch);
+  auto module = remill::LoadModuleFromFile(context, bc_file);
+  remill::GetHostArch()->PrepareModule(module);
+
+  for (auto i = 0U; ; ++i) {
     const auto &test = test::__aarch64_test_table_begin[i];
-    if (&test >= &(test::__aarch64_test_table_end[0])) {
-      break;
-    }
-    tests.push_back(&test);
-  }
-
-  TestTraceManager manager;
-
-  // Add all code byts from the test cases to the memory.
-  for (auto test : tests) {
-    for (auto addr = test->test_begin; addr < test->test_end; ++addr) {
-      manager.memory[addr] = *reinterpret_cast<uint8_t *>(addr);
-    }
-  }
-
-  llvm::LLVMContext context;
-  auto os_name = remill::GetOSName(REMILL_OS);
-  auto arch_name = remill::GetArchName(FLAGS_arch);
-  auto arch = remill::Arch::Build(&context, os_name, arch_name);
-  auto module = remill::LoadArchSemantics(arch);
-
-  remill::IntrinsicTable intrinsics(module.get());
-  remill::InstructionLifter inst_lifter(arch, intrinsics);
-  remill::TraceLifter trace_lifter(inst_lifter, manager);
-
-  for (auto test : tests) {
-    if (!trace_lifter.Lift(test->test_begin)) {
-      LOG(ERROR) << "Unable to lift test " << test->test_name;
-      continue;
-    }
-
-    // Make sure the trace for the test has the right name.
-    std::stringstream ss;
-    ss << SYMBOL_PREFIX << test->test_name << "_lifted";
-
-    auto lifted_trace = manager.GetLiftedTraceDefinition(test->test_begin);
-    lifted_trace->setName(ss.str());
+    if (&test >= &(test::__aarch64_test_table_end[0])) break;
+    AddFunctionToModule(module, arch, test);
   }
 
   DLOG(INFO) << "Serializing bitcode to " << FLAGS_bc_out;
-  auto host_arch =
-      remill::Arch::Build(&context, os_name, remill::GetArchName(REMILL_ARCH));
-  host_arch->PrepareModule(module.get());
-  remill::StoreModuleToFile(module.get(), FLAGS_bc_out);
+  remill::StoreModuleToFile(module, FLAGS_bc_out);
 
   DLOG(INFO) << "Done.";
   return 0;

@@ -10,24 +10,24 @@ This document will use the instructions in the following basic block as a runnin
 
 ## Decoding instructions
 
-The first step to lifting is to decode the bytes of an instruction. This decoding step takes raw instruction bytes, and turns them into a higher-level [`Instruction`](/include/remill/Arch/Instruction.h) data structure. This data structure represents the logical operands to the machine code instructions. These operands have a one-to-one correspondence with arguments that will be passed to semantics functions.
+The first step to lifting is to decode the bytes of an instruction. This decoding step takes raw instruction bytes, and turns them into a higher-level [`Instruction`](/remill/Arch/Instruction.h) data structure. This data structure represents the logical operands to the machine code instructions. These operands have a one-to-one correspondence with arguments that will be passed to semantics functions.
 
 Below is a string representation of the data structures representing our example assembly.
 
 ```lisp
 ;; mov eax, 1
-(X86 804b7a3 5 (BYTES b8 01 00 00 00)
+(X86 8048098 5 (BYTES b8 01 00 00 00)
   MOV_GPRv_IMMv_32
     (WRITE_OP (REG_32 EAX))
     (READ_OP  (IMM_32 0x1)))
 
 ;; push ebx
-(X86 804b7a8 1 (BYTES 53)
+(X86 804809d 1 (BYTES 53)
   PUSH_GPRv_50_32
     (READ_OP (REG_32 EBX)))
 
 ;; mov ebx, dword ptr [esp + 8]
-(X86 804b7a9 4 (BYTES 8b 5c 24 08)
+(X86 804809e 4 (BYTES 8b 5c 24 08)
   MOV_GPRv_MEMv_32
     (WRITE_OP (REG_32 EBX))
     (READ_OP  (DWORD_PTR (ADD (REG_32 SS_BASE)
@@ -35,15 +35,15 @@ Below is a string representation of the data structures representing our example
                               (SIGNED_IMM_32 0x8)))))
 
 ;; int 0x80
-(X86 804b7ad 2 (BYTES cd 80)
+(X86 80480a2 2 (BYTES cd 80)
   INT_IMMb
     (READ_OP (IMM_8 0x80)))
 ```
 
 ## From architecture-specific to architecture-neutral
 
-Decoded instructions must be lifted into a compatible function. Compatible functions are clones of the [`__remill_basic_block`](/lib/Arch/X86/Runtime/BasicBlock.cpp) function. The `__remill_basic_block` function is special because it defines local
-variables that "point into" the [`State`](/include/remill/Arch/X86/Runtime/State.h)) structure, which represents the machine's register state.
+Decoded instructions must be lifted into a compatible function. Compatible functions are clones of the [`__remill_basic_block`](/remill/Arch/X86/Runtime/BasicBlock.cpp) function. The `__remill_basic_block` function is special because it defines local
+variables that "point into" the [`State`](/remill/Arch/X86/Runtime/State.h)) structure, which represents the machine's register state.
 
 The following is an example of the `__remill_basic_block` function for X86.
 

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#ifndef __APPLE__
 TEST_BEGIN(CPUID, 2)
 TEST_INPUTS(
     0x07, 0,
@@ -33,4 +32,3 @@ TEST_INPUTS(
     mov ecx, ARG2_32
     cpuid
 TEST_END
-#endif
