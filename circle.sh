@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-
 # Lift, recompile and execute a mips32 binary
 
 function Lift
@@ -9,16 +7,20 @@ function Lift
   if [ $arch == "mipsl" ];then
     arch="mips32"
   fi
-  remill-build/tools/mcsema/mcsema-lift-4.0 --os linux --arch $arch --cfg $bn.cfg --output $bn.bc
+  mcsema-lift-4.0 --os linux --arch $arch --cfg $bn.cfg --output $bn.bc
   return $?
 }
 
 
-read -p "path to mips32 binary: " bn
-read -p "arch? [ X86 | AMD64 | AARCH64 | mipsl ]" arch
+# for testing purpose only, hardcoding these vars
+# you can always change these to your requirements
 
-mcsema-disass --os 
-mcsema-disass  --os linux --arch $arch --entrypoint main --output $bn.cfg --log_file $bn.log --binary $bn
+read -p "path to mips32 binary: " bn
+arch="mipsl"
+# assume IDA-pro is installed in the home folder
+dis="~/idapro-7.6/idat"
+
+mcsema-disass  --disassembler $dis --os linux --arch $arch --entrypoint main --output $bn.cfg --log_file $bn.log --binary $bn
 
 
 echo "generating bitocode"
@@ -36,10 +38,10 @@ llvm-dis-4.0 $bn.bc
 
 echo "Recompiling..."
 
-clang-4.0 -o $bn\_re -fuse-ld=lld --target="mipsel-pc-linux-gnu-elf" $bn.ll  remill/remill-build/tools/mcsema/mcsema/Arch/MIPSEL/Runtime/lib_mipsel.a
+clang-4.0 -o $bn\_re -fuse-ld=lld --target="mipsel-pc-linux-gnu-elf" $bn.ll  /usr/local/lib/lib_mipsel.a
 
 echo -e "\n\nExecuting...\n\n"
 
-qemu-mipsel -L /usr/mipsel-linux-gnu/ $bn.new
+qemu-mipsel -L /usr/mipsel-linux-gnu/ $bn\_re
 
 exit 
