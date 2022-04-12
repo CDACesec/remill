@@ -89,7 +89,7 @@ function GetArchVersion
 
 function DownloadCxxCommon
 {
-  if ! curl -O "https://s3.amazonaws.com/cxx-common/${LIBRARY_VERSION}.tar.gz"; then
+  if ! wget "https://github.com/CDACesec/cxx-common-repository/releases/download/pre-release2/libraries-llvm40-ubuntu1804-amd64.tar.gz"; then
     return 1
   fi
 
@@ -98,6 +98,7 @@ function DownloadCxxCommon
     TAR_OPTIONS=""
   fi
 
+  echo "unzipping and deleting the zip file"
   tar xf "${LIBRARY_VERSION}.tar.gz" $TAR_OPTIONS
   rm "${LIBRARY_VERSION}.tar.gz"
 

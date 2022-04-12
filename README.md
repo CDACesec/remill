@@ -20,7 +20,6 @@ sudo apt-get install \
              gcc-multilib g++-multilib \
              libtinfo-dev \
              lsb-release \
-             realpath \
              zlib1g-dev \
              llvm-4.0 \
              clang-4.0 \
@@ -51,6 +50,7 @@ git clone https://github.com/CDACesec/mcsema.git
 cd ..
 ./scripts/build.sh
 cd remill-build
+chmod +x ../tools/mcsema/tools/setup_launcher.sh
 sudo make install
 ```
 Verify the installation by executing the following command
